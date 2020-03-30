@@ -4,6 +4,8 @@ use indexmap::IndexMap;
 use super::{
     ParamKey,
     FilterType,
+    Transform,
+    Engine,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -17,6 +19,7 @@ pub struct EndpointConfig {
     pub name: String,
     pub sql_select: SqlSelectConfig,
     pub primary: Option<String>,
+    pub engine: Option<Engine>,
     pub interface: InterfaceConfig,
 }
 
@@ -31,6 +34,8 @@ pub struct ParamValueConfig {
     pub dimension: Option<DimensionConfig>,
     pub is_text: Option<bool>,
     pub is_template_var: Option<bool>,
+    pub weight: Option<f32>,
+    pub transform: Option<Transform>,
 }
 
 // TODO remove. template sql should replace the need for this.

@@ -170,6 +170,7 @@ pub struct Endpoint{
     pub name: String,
     pub sql_select: SqlSelect,
     pub primary:Option<String>,
+    pub engine: Option<Engine>,
     pub interface: Interface,
 }
 
@@ -184,6 +185,8 @@ pub struct ParamValue {
     pub dimension: Option<Dimension>,
     pub is_text: bool,
     pub is_template_var: bool,
+    pub weight: Option<f32>,
+    pub transform: Option<Transform>,
 }
 
 #[derive(Debug, Clone)]
@@ -206,6 +209,24 @@ pub enum FilterType {
     InArray,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum Engine {
+    #[serde(rename="regular")]
+    Regular,
+    #[serde(rename="similarity")]
+    Similarity,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum Transform {
+    #[serde(rename="none")]
+    None,
+    #[serde(rename="normalize")]
+    Normalize,
+    #[serde(rename="group")]
+    Group,
+}
+
 impl From<SchemaConfig> for Schema {
     fn from(config: SchemaConfig) -> Self {
         Schema {
@@ -221,6 +242,7 @@ impl From<EndpointConfig> for Endpoint {
             name: config.name,
             sql_select: config.sql_select.into(),
             primary: config.primary,
+            engine: config.engine.into(),
             interface: config.interface.into(),
         }
     }
@@ -239,6 +261,8 @@ impl From<InterfaceConfig> for Interface {
                      dimension: p_config.dimension.clone().map(|d| d.into()),
                      is_text: p_config.is_text.unwrap_or(false),
                      is_template_var: p_config.is_template_var.unwrap_or(false),
+                     weight: p_config.weight,
+                     transform: p_config.transform.clone(),
                  },
                 )
             }).collect();

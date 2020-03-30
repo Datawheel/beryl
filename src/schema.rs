@@ -32,6 +32,7 @@ impl Schema {
 
         Ok(schema_config.into())
     }
+
     pub fn get_endpoint(&self, endpoint_path: &str) -> Option<Endpoint> {
         self.endpoints.iter()
             .find(|e| e.name == endpoint_path)

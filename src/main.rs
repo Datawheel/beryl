@@ -32,7 +32,6 @@ fn main() -> Result<(), Error> {
 
     let schema_path = std::env::var("BERYL_SCHEMA_FILEPATH")
         .unwrap_or("".into());
-        //.expect("BERYL_SCHEMA_FILEPATH not found");
     let schema = Schema::from_path(&schema_path)?;
 
     // templates. Needed only if there's any route in api that

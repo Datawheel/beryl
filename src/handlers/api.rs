@@ -7,7 +7,7 @@ use actix_web::{
     HttpResponse,
     Path,
 };
-use failure::Error;
+use failure::{Error, format_err};
 use futures::future::{self, *};
 use lazy_static::lazy_static;
 use log::*;
@@ -19,6 +19,7 @@ use crate::dataframe::{DataFrame, Column, ColumnData};
 use crate::error::ServerError;
 use crate::format::{FormatType, format_records};
 use crate::query::Query;
+use crate::schema::Engine;
 use super::api_shared::ApiQueryOpt;
 use super::util;
 
@@ -65,6 +66,53 @@ pub fn do_api(
 
     info!("endpoint: {}, format: {:?}", endpoint, format);
 
+    let schema_endpoint_res = req.state().schema
+        .endpoints.iter()
+        .find(|ept| ept.name == endpoint)
+        .ok_or_else(|| format_err!("Couldn't find endpoint in schema"));
+
+    let schema_endpoint = match schema_endpoint_res {
+        Ok(x) => x,
+        Err(err) => {
+            return Box::new(
+                future::result(
+                    Ok(HttpResponse::NotFound().json(err.to_string()))
+                )
+            );
+        }
+    };
+
+    match &schema_endpoint.engine {
+        Some(engine) => {
+            match engine {
+                Engine::Regular => perform_regular_query(req, &endpoint, format),
+                Engine::Similarity => perform_similarity_query(req, &endpoint, format)
+            }
+        },
+        None => {
+            perform_regular_query(req, &endpoint, format)
+        }
+    }
+}
+
+
+fn get_count(df: &DataFrame) -> u64 {
+    match &df.columns[0].column_data {
+        ColumnData::UInt64(data)=> {
+            data[0]
+        },
+        _ => {
+            // Should never get here as counts will always return UInt64
+            0
+        }
+    }
+}
+
+fn perform_regular_query(
+    req: HttpRequest<AppState>,
+    endpoint: &str,
+    format: FormatType,
+) -> FutureResponse<HttpResponse> {
     let query = req.query_string();
     lazy_static!{
         static ref QS_NON_STRICT: qs::Config = qs::Config::new(5, false);
@@ -176,15 +224,14 @@ pub fn do_api(
         .responder()
 }
 
-
-fn get_count(df: &DataFrame) -> u64 {
-    match &df.columns[0].column_data {
-        ColumnData::UInt64(data)=> {
-            data[0]
-        },
-        _ => {
-            // Should never get here as counts will always return UInt64
-            0
-        }
-    }
+fn perform_similarity_query(
+    req: HttpRequest<AppState>,
+    endpoint: &str,
+    format: FormatType,
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        future::result(
+            Ok(HttpResponse::NotFound().json("HAVEN'T SET THIS UP YET".to_string()))
+        )
+    )
 }

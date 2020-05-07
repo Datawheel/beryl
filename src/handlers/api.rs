@@ -19,7 +19,7 @@ use crate::dataframe::{DataFrame, Column, ColumnData};
 use crate::error::ServerError;
 use crate::format::{FormatType, format_records};
 use crate::query::Query;
-use crate::schema::Engine;
+use crate::schema::{Engine, Endpoint};
 use super::api_shared::ApiQueryOpt;
 use super::util;
 
@@ -86,12 +86,10 @@ pub fn do_api(
         Some(engine) => {
             match engine {
                 Engine::Regular => perform_regular_query(req, &endpoint, format),
-                Engine::Similarity => perform_similarity_query(req, &endpoint, format)
+                Engine::Similarity => perform_similarity_query(req.clone(), &endpoint, &schema_endpoint, format)
             }
         },
-        None => {
-            perform_regular_query(req, &endpoint, format)
-        }
+        None => perform_regular_query(req, &endpoint, format)
     }
 }
 
@@ -224,14 +222,198 @@ fn perform_regular_query(
         .responder()
 }
 
+
+use rustml::*;
+use rustml::knn::scan;
+use rustml::Matrix;
+
+use std::{thread, time};
+
+
 fn perform_similarity_query(
     req: HttpRequest<AppState>,
     endpoint: &str,
+    schema_endpoint: &Endpoint,
     format: FormatType,
 ) -> FutureResponse<HttpResponse> {
-    Box::new(
-        future::result(
-            Ok(HttpResponse::NotFound().json("HAVEN'T SET THIS UP YET".to_string()))
-        )
-    )
+    // TODO: Somehow store this into the app state
+    // TODO: Build this from the actual data
+
+    // TODO: Get this from the data
+    let sql_str = "SELECT company_id, price, sic_code FROM sos_beryl_stock LIMIT 10".to_string();
+
+    println!(" ");
+    println!(" ");
+    println!("STARTING REQUEST");
+    println!(" ");
+    println!(" ");
+
+    let res_df = req.state()
+        .backend
+        .exec_sql(sql_str);
+
+//        .wait()
+//        .and_then(move |df| {
+//            println!(" ");
+//            println!(" ");
+//            println!("{:?}", df);
+//            println!(" ");
+//            println!(" ");
+//
+//            Ok(df)
+//        });
+//
+//    match res_df {
+//        Ok(res_df) => {
+//            println!(" ");
+//            println!(" ");
+//            println!("FINISHED REQUEST");
+//            println!(" ");
+//            println!(" ");
+//        },
+//        Err(err) => {
+//            return Box::new(
+//                future::result(
+//                    Ok(HttpResponse::NotFound().json(
+//                        err.to_string()
+//                    ))
+//                )
+//            );
+//        }
+//    }
+
+    let ten_millis = time::Duration::from_millis(10000);
+
+    thread::sleep(ten_millis);
+
+//    return Box::new(
+//        future::result(
+//            Ok(HttpResponse::NotFound().json(
+//                "GOT THIS FAR".to_string()
+//            ))
+//        )
+//    );
+
+
+
+
+
+    let mut stock_tensor_map: HashMap<String, Vec<f32>> = HashMap::new();
+    stock_tensor_map.insert("GOOG".to_string(), vec![1.0, 2.0]);
+    stock_tensor_map.insert("AAPL".to_string(), vec![3.0, 4.0]);
+    stock_tensor_map.insert("MSFT".to_string(), vec![5.0, 6.0]);
+
+    let mut stock_index_map: HashMap<usize, String> = HashMap::new();
+    stock_index_map.insert(0, "GOOG".to_string());
+    stock_index_map.insert(1, "AAPL".to_string());
+    stock_index_map.insert(2, "MSFT".to_string());
+
+    let stock_tensor: Vec<Vec<f32>> = vec![
+        vec![1.0, 2.0],
+        vec![3.0, 4.0],
+        vec![5.0, 6.0],
+    ];
+
+    let num_rows = stock_tensor.len();
+    let num_cols = stock_tensor[0].len();
+
+    let flat_stock_tensor = flatten_2d_tensor(&stock_tensor);
+
+    // We need a Matrix object to do the actual KNN
+    let stock_matrix = Matrix::<f32>::from_vec(
+        flat_stock_tensor, num_rows, num_cols
+    );
+
+    /////////////////////////////////
+    // WHEN A NEW REQUEST COMES IN //
+    /////////////////////////////////
+
+    let mut stock = match stock_tensor_map.get("AAPL") {
+        Some(stock) => stock,
+        None => {
+            return Box::new(
+                future::result(
+                    Ok(HttpResponse::NotFound().json(
+                        "Unable to recognize provided ID".to_string()
+                    ))
+                )
+            )
+        }
+    };
+
+    // TODO: Get this from the query?
+    let num_results = 2;
+
+    // Perform the KNN search
+    // k = num_results + 1, since the first result will always be an exact
+    // match with the provided ID.
+    let scan_res = scan(
+        &stock_matrix,
+        stock,
+        num_results + 1,
+        |x, y| Euclid::compute(x, y).unwrap()
+    );
+
+    match scan_res {
+        Some(indexes) => {
+            println!("RESULTS:");
+
+            // Need to skip the first result, since it will just be the same as
+            // the stock provided
+            for index in &indexes {
+                println!("{:?}: {:?}", index, stock_index_map.get(index));
+            }
+
+            Box::new(
+                future::result(
+                    Ok(HttpResponse::NotFound().json(
+                        indexes.to_string()
+                    ))
+                )
+            )
+        },
+        None => {
+            Box::new(
+                future::result(
+                    Ok(HttpResponse::NotFound().json(
+                        "Error retrieving similar results".to_string()
+                    ))
+                )
+            )
+        }
+    }
 }
+
+fn flatten_2d_tensor(tensor: &Vec<Vec<f32>>) -> Vec<f32> {
+    let mut final_tensor = vec![];
+
+    for vector in tensor {
+        for entry in vector {
+            final_tensor.push(entry.clone());
+        }
+    }
+
+    final_tensor
+}
+
+//fn get_res_df(req: &HttpRequest<AppState>, sql_str: String) -> Result<DataFrame, Error> {
+//    println!(" ");
+//    println!(" ");
+//    println!("MAKING THE REQUEST");
+//    println!(" ");
+//    println!(" ");
+//
+//    req.state()
+//        .backend
+//        .exec_sql(sql_str)
+//        .wait()
+//        .and_then(move |df| {
+//            println!(" ");
+//            println!(" ");
+//            println!("AND THEN>>>");
+//            println!(" ");
+//            println!(" ");
+//
+//            Ok(df)
+//        })
+//}

@@ -44,16 +44,36 @@ impl Backend for Clickhouse {
     fn exec_sql(&self, sql: String) -> Box<Future<Item=DataFrame, Error=Error>> {
         let time_start = Instant::now();
 
+        println!(" ");
+        println!("WE'RE IN!");
+        println!(" ");
+        println!("{:?}", sql);
+        println!(" ");
+
         let fut = self.pool
             .get_handle()
-            .and_then(move |c| c.query(&sql[..]).fetch_all())
+            .and_then(move |c| {
+                println!(" ");
+                println!("SENDING QUERY!");
+                println!(" ");
+
+                c.query(&sql[..]).fetch_all()
+            })
             .from_err()
             .and_then(move |(_, block): (_, Block<Complex>)| {
                 let timing = time_start.elapsed();
                 info!("Time for sql execution: {}.{:03}", timing.as_secs(), timing.subsec_millis());
 
+                println!(" ");
+                println!("THIS IS WHEN IT SHOULD BE DONE!");
+                println!(" ");
+
                 Ok(block_to_df(block)?)
             });
+
+        println!(" ");
+        println!("WE'RE OUT!");
+        println!(" ");
 
         Box::new(fut)
     }

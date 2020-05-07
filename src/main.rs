@@ -1,5 +1,3 @@
-#![feature(slice_patterns)]
-
 mod app;
 mod backend;
 mod clickhouse;
@@ -85,7 +83,13 @@ fn main() -> Result<(), Error> {
     let sys = actix::System::new("beryl");
 
     server::new(
-        move|| create_app(schema.clone(), db.clone(), sql_templates.clone(), api_key.clone(), debug)
+        move|| create_app(
+            schema.clone(),
+            db.clone(),
+            sql_templates.clone(),
+            api_key.clone(),
+            debug
+        )
     )
     .bind(&server_addr)
     .expect(&format!("cannot bind to {}", server_addr))
